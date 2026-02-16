@@ -46,6 +46,7 @@ Use this template for each new decision entry.
 | D-0007 | Adopt `zap` for daemon structured logging | Accepted | 2026-02-16 |
 | D-0008 | `.references` is read-only inspiration, no direct copy | Accepted | 2026-02-16 |
 | D-0009 | Spec-first sync rule for markdown docs | Accepted | 2026-02-16 |
+| D-0010 | Testing workflow is mandatory for code changes | Accepted | 2026-02-16 |
 
 ## 5. Active Decisions
 ### D-0001 - Canonical identity term is `session`
@@ -177,3 +178,21 @@ Use this template for each new decision entry.
   - [SPEC](./SPEC.md)
   - [ARCHITECTURE](./ARCHITECTURE.md)
   - [AGENTS](../AGENTS.md)
+
+### D-0010 - Testing workflow is mandatory for code changes
+- Date: 2026-02-16
+- Status: Accepted
+- Context:
+  Rapid iteration can degrade quality unless every code change runs a consistent local validation gate.
+- Decision:
+  Enforce a mandatory local command gate for code changes via:
+  - `make lint`
+  - `make test`
+  and define canonical testing policy in [TESTING](./TESTING.md).
+- Consequences:
+  - Stronger quality and consistency before merge.
+  - Slightly longer feedback loops for contributors and agents.
+- Related Docs:
+  - [TESTING](./TESTING.md)
+  - [AGENTS](../AGENTS.md)
+  - [ROADMAP](./ROADMAP.md)

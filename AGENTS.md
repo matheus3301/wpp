@@ -47,7 +47,15 @@ If a conflict indicates stale documentation, update affected docs in the same ch
   - Operational behavior change -> update `OPERATIONS.md`
   - Product scope/value change -> update `SPEC.md` and dependent docs
 
-## 6. Change Classification and Required Doc Updates
+## 6. Code Quality Gate for Code Changes
+- For code changes, contributors and agents must run:
+  - `make lint`
+  - `make test`
+- If these commands fail, the task must not be treated as complete.
+- If a change is docs-only, this command gate is optional.
+- If commands are skipped due no Go packages, confirm that skip output was expected.
+
+## 7. Change Classification and Required Doc Updates
 | Change Type | Required Doc Updates |
 |---|---|
 | Session model or naming change | `SPEC.md`, `ARCHITECTURE.md`, `API.md`, `DECISIONS.md` |
@@ -56,7 +64,7 @@ If a conflict indicates stale documentation, update affected docs in the same ch
 | Runtime failure/recovery behavior changes | `ARCHITECTURE.md`, `OPERATIONS.md`, `API.md` |
 | Roadmap or phase scope changes | `ROADMAP.md`, `DECISIONS.md`, possibly `SPEC.md` |
 
-## 7. Writing Standards for New `.md` Files
+## 8. Writing Standards for New `.md` Files
 - Use clear section headers and short paragraphs.
 - Prefer explicit contracts, responsibilities, and boundaries over narrative ambiguity.
 - Use tables for matrices (errors, phases, mappings, decision indexes).
@@ -64,17 +72,20 @@ If a conflict indicates stale documentation, update affected docs in the same ch
 - Link related docs directly with relative links when possible.
 - Keep docs ASCII unless existing file requires Unicode.
 
-## 8. Prohibited Actions
+## 9. Prohibited Actions
 - Editing anything inside `.references`.
 - Copy-pasting external reference code into project code/docs as authoritative implementation.
 - Introducing alternate canonical terminology when `session` is the project standard.
 - Changing architecture/API/session behavior without updating `.context` docs.
 - Creating new planning docs outside `.context` without explicit request.
 
-## 9. Quick Checklist Before Finishing a Task
+## 10. Quick Checklist Before Finishing a Task
 - Did I keep `.references` untouched?
 - Did I use `session` terminology consistently?
 - Did I update all impacted `.context` docs for any architecture/API/session changes?
+- For code changes: did `make lint` pass?
+- For code changes: did `make test` pass?
+- If commands were skipped because no packages exist, was that skip expected?
 - Did I keep source-of-truth precedence intact?
 - Did I add/update links between related docs?
 - Are decisions recorded in [DECISIONS](.context/DECISIONS.md) when policy changed?

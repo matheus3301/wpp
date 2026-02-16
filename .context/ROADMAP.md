@@ -18,6 +18,7 @@ Rules for all phases:
 - Exit criteria are mandatory gates.
 - If scope decisions change, update [DECISIONS](./DECISIONS.md) in the same change set.
 - If architecture contracts change, update [ARCHITECTURE](./ARCHITECTURE.md) and [API](./API.md) in the same change set.
+- Code-delivery phases are complete only when testing workflow and required test artifacts are satisfied per [TESTING](./TESTING.md).
 
 ## 3. Phase 0: Documentation and Contract Baseline
 ### Goal
