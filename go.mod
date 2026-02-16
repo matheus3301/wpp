@@ -1,3 +1,3 @@
-module github.com/matheus3301/wpp-tui
+module github.com/matheus3301/wpp
 
-go 1.25.0
+go 1.26
