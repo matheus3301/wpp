@@ -49,6 +49,8 @@ Use this template for each new decision entry.
 | D-0010 | Testing workflow is mandatory for code changes | Accepted | 2026-02-16 |
 | D-0011 | Adopt `golang-migrate` for embedded SQL migrations | Accepted | 2026-02-16 |
 | D-0012 | Adopt `BurntSushi/toml` for config format | Accepted | 2026-02-16 |
+| D-0013 | Decouple `wa`, `sync`, and `outbox` via event bus | Accepted | 2026-02-17 |
+| D-0014 | Adopt `skip2/go-qrcode` for TUI QR rendering | Accepted | 2026-02-17 |
 
 ## 5. Active Decisions
 ### D-0001 - Canonical identity term is `session`
@@ -223,5 +225,36 @@ Use this template for each new decision entry.
 - Consequences:
   - Simple, well-maintained dependency for config parsing.
   - Config format is TOML, consistent with Go ecosystem conventions.
+- Related Docs:
+  - [STACK](./STACK.md)
+
+### D-0013 - Decouple `wa`, `sync`, and `outbox` via event bus
+- Date: 2026-02-17
+- Status: Accepted
+- Context:
+  Direct imports between `wa` (WhatsApp adapter) and `sync` (ingestion engine) created an import cycle when adding outbound send support. The tight coupling also made unit testing harder.
+- Decision:
+  Use the event bus as the decoupling boundary:
+  - `wa` publishes raw parsed events (`wa.message`, `wa.history_batch`) to the bus.
+  - `sync` subscribes to `wa.*` bus events for inbound ingestion.
+  - `outbox` is a separate package that polls the outbox table and sends via a `TextSender` interface (satisfied by `wa.Adapter`).
+  - No direct imports between `wa`, `sync`, and `outbox`.
+- Consequences:
+  - Eliminates import cycles entirely.
+  - Each component is independently testable with bus or mock.
+  - Slightly more indirection (bus publish/subscribe vs direct call).
+- Related Docs:
+  - [ARCHITECTURE](./ARCHITECTURE.md)
+
+### D-0014 - Adopt `skip2/go-qrcode` for TUI QR rendering
+- Date: 2026-02-17
+- Status: Accepted
+- Context:
+  The TUI auth flow receives QR code content as a string from whatsmeow. It needs to be rendered as a scannable QR code in the terminal.
+- Decision:
+  Use `github.com/skip2/go-qrcode` to generate a bitmap, then render with Unicode half-block characters for compact terminal display.
+- Consequences:
+  - QR codes are scannable directly from the TUI.
+  - Small, zero-dependency library.
 - Related Docs:
   - [STACK](./STACK.md)

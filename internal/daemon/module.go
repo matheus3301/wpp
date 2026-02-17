@@ -7,6 +7,7 @@ import (
 	"github.com/matheus3301/wpp/internal/bus"
 	"github.com/matheus3301/wpp/internal/lock"
 	"github.com/matheus3301/wpp/internal/logging"
+	"github.com/matheus3301/wpp/internal/outbox"
 	"github.com/matheus3301/wpp/internal/session"
 	"github.com/matheus3301/wpp/internal/status"
 	"github.com/matheus3301/wpp/internal/store"
@@ -34,6 +35,7 @@ func Module(p Params) fx.Option {
 			provideStore,
 			provideAdapter,
 			provideSyncEngine,
+			provideSender,
 			provideSessionService,
 			provideSyncService,
 			provideChatService,
@@ -97,6 +99,10 @@ func provideSyncEngine(db *store.DB, b *bus.Bus, logger *zap.Logger) *intsync.En
 	return intsync.NewEngine(db, b, logger)
 }
 
+func provideSender(db *store.DB, adapter *wa.Adapter, b *bus.Bus, logger *zap.Logger) *outbox.Sender {
+	return outbox.NewSender(db, adapter, b, logger)
+}
+
 func provideSessionService(p Params, m *status.Machine, adapter *wa.Adapter, b *bus.Bus) *api.SessionService {
 	return api.NewSessionService(p.SessionName, m, adapter, b)
 }
@@ -113,11 +119,14 @@ func provideMessageService(db *store.DB, b *bus.Bus) *api.MessageService {
 	return api.NewMessageService(db, b)
 }
 
-func registerLifecycle(lc fx.Lifecycle, srv *Server, lk *lock.Lock, adapter *wa.Adapter, engine *intsync.Engine, machine *status.Machine, b *bus.Bus, logger *zap.Logger) {
+func registerLifecycle(lc fx.Lifecycle, srv *Server, lk *lock.Lock, adapter *wa.Adapter, engine *intsync.Engine, sender *outbox.Sender, machine *status.Machine, b *bus.Bus, logger *zap.Logger) {
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
+			// Start sync engine (subscribes to wa.* bus events).
+			engine.Start(context.Background())
+
 			// Register event handler for whatsmeow events.
-			handler := wa.NewEventHandler(engine, b, machine, logger)
+			handler := wa.NewEventHandler(b, machine, logger)
 			adapter.RegisterEventHandler(handler.Handle)
 
 			// Start gRPC server in background.
@@ -126,6 +135,9 @@ func registerLifecycle(lc fx.Lifecycle, srv *Server, lk *lock.Lock, adapter *wa.
 					logger.Error("gRPC server error", zap.Error(err))
 				}
 			}()
+
+			// Start outbox sender.
+			sender.Start(context.Background())
 
 			// Transition state based on auth status.
 			if adapter.IsLoggedIn() {
@@ -144,6 +156,8 @@ func registerLifecycle(lc fx.Lifecycle, srv *Server, lk *lock.Lock, adapter *wa.
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
+			sender.Stop()
+			engine.Stop()
 			adapter.Disconnect()
 			srv.Stop(ctx)
 			if err := lk.Release(); err != nil {

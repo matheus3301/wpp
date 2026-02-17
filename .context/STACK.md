@@ -38,6 +38,7 @@ Related docs:
 | TUI components | `github.com/rivo/tview` | Adopted | `wpptui` only | Productive layout and widget composition with tcell | Keep custom widgets focused on domain needs |
 | Schema migration | `github.com/golang-migrate/migrate/v4` | Adopted | `wppd` store layer | Embedded SQL migrations for `wpp.db` schema versioning | Migrations embedded via `embed.FS` + `iofs` driver |
 | Config format | `github.com/BurntSushi/toml` | Adopted | Shared (config loader) | Minimal TOML parser for `~/.wpp/config.toml` | Low dependency footprint, human-readable config format |
+| QR code rendering | `github.com/skip2/go-qrcode` | Adopted | `wpptui` only | Renders QR codes as ASCII art for terminal auth flow | Used with Unicode half-block characters for compact display |
 
 ## 5. Usage Boundaries by Component
 ### `wppd`

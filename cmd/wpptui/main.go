@@ -29,10 +29,15 @@ func main() {
 
 	socketPath := session.SocketPath(sessionName)
 
+	// Track whether we spawned the daemon (so we kill it on exit).
+	var daemonCmd *exec.Cmd
+
 	// Probe daemon health; auto-start if needed.
 	if !probeDaemon(socketPath) {
 		fmt.Fprintf(os.Stderr, "daemon not running for session %q, starting...\n", sessionName)
-		if err := startDaemon(sessionName); err != nil {
+		var err error
+		daemonCmd, err = startDaemon(sessionName)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to start daemon: %v\n", err)
 			os.Exit(1)
 		}
@@ -53,6 +58,12 @@ func main() {
 	if err := app.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// If we spawned the daemon, kill it on TUI exit.
+	if daemonCmd != nil && daemonCmd.Process != nil {
+		_ = daemonCmd.Process.Signal(os.Interrupt)
+		_ = daemonCmd.Wait()
 	}
 }
 
@@ -75,10 +86,10 @@ func probeDaemon(socketPath string) bool {
 	return err == nil
 }
 
-func startDaemon(sessionName string) error {
+func startDaemon(sessionName string) (*exec.Cmd, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	wppd := filepath.Join(filepath.Dir(executable), "wppd")
 
@@ -87,12 +98,11 @@ func startDaemon(sessionName string) error {
 	}
 
 	cmd := exec.Command(wppd, "--session", sessionName)
-	// Inherit stderr so daemon startup errors are visible.
-	cmd.Stderr = os.Stderr
-	return cmd.Start()
+	cmd.Stderr = nil
+	return cmd, cmd.Start()
 }
 
-// waitForDaemon polls the daemon with a real gRPC health check (not just socket connect).
+// waitForDaemon polls the daemon with a real gRPC health check.
 func waitForDaemon(socketPath string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {

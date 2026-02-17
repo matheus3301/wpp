@@ -7,8 +7,12 @@ import (
 	"github.com/matheus3301/wpp/internal/bus"
 	"github.com/matheus3301/wpp/internal/session"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	wastore "go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -24,6 +28,9 @@ type Adapter struct {
 
 // NewAdapter creates a new WhatsApp adapter for the given session.
 func NewAdapter(ctx context.Context, sessionName string, b *bus.Bus, logger *zap.Logger) (*Adapter, error) {
+	// Set device name shown on the phone's linked devices list.
+	wastore.SetOSInfo("WPP-TUI", [3]uint32{0, 1, 0})
+
 	dbPath := session.SessionDBPath(sessionName)
 
 	container, err := sqlstore.New(ctx, "sqlite3",
@@ -80,6 +87,21 @@ func (a *Adapter) Logout(ctx context.Context) error {
 // RegisterEventHandler adds a handler for whatsmeow events.
 func (a *Adapter) RegisterEventHandler(handler whatsmeow.EventHandler) {
 	a.client.AddEventHandler(handler)
+}
+
+// SendText sends a text message to the given JID. Returns the server message ID.
+func (a *Adapter) SendText(ctx context.Context, jid string, text string) (string, error) {
+	to, err := types.ParseJID(jid)
+	if err != nil {
+		return "", fmt.Errorf("parse JID: %w", err)
+	}
+	resp, err := a.client.SendMessage(ctx, to, &waE2E.Message{
+		Conversation: proto.String(text),
+	})
+	if err != nil {
+		return "", fmt.Errorf("send message: %w", err)
+	}
+	return resp.ID, nil
 }
 
 // GetQRChannel returns the QR channel for pairing. Must be called before Connect.

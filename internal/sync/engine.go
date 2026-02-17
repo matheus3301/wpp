@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -10,10 +11,12 @@ import (
 )
 
 // Engine handles idempotent ingestion of messages into the store.
+// It subscribes to "wa.*" events on the bus and processes them.
 type Engine struct {
 	db     *store.DB
 	bus    *bus.Bus
 	logger *zap.Logger
+	cancel context.CancelFunc
 }
 
 // NewEngine creates a new sync engine.
@@ -25,9 +28,56 @@ func NewEngine(db *store.DB, b *bus.Bus, logger *zap.Logger) *Engine {
 	}
 }
 
+// Start subscribes to inbound WhatsApp events on the bus.
+func (e *Engine) Start(ctx context.Context) {
+	ctx, e.cancel = context.WithCancel(ctx)
+	ch, unsub := e.bus.Subscribe("wa.", 256)
+
+	go func() {
+		defer unsub()
+		for {
+			select {
+			case evt := <-ch:
+				e.handleEvent(evt)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+// Stop stops the engine.
+func (e *Engine) Stop() {
+	if e.cancel != nil {
+		e.cancel()
+	}
+}
+
+func (e *Engine) handleEvent(evt bus.Event) {
+	switch evt.Kind {
+	case "wa.message":
+		msg, ok := evt.Payload.(*store.Message)
+		if !ok {
+			return
+		}
+		if err := e.IngestMessage(msg); err != nil {
+			e.logger.Error("failed to ingest message", zap.Error(err), zap.String("msg_id", msg.MsgID))
+		}
+	case "wa.history_batch":
+		msgs, ok := evt.Payload.([]*store.Message)
+		if !ok {
+			return
+		}
+		if err := e.IngestHistoryBatch(msgs); err != nil {
+			e.logger.Error("failed to ingest history batch", zap.Error(err), zap.Int("count", len(msgs)))
+		} else {
+			e.logger.Info("history batch ingested", zap.Int("messages", len(msgs)))
+		}
+	}
+}
+
 // IngestMessage processes a single message into the store (idempotent).
 func (e *Engine) IngestMessage(msg *store.Message) error {
-	// Ensure chat exists.
 	if err := e.db.UpsertChat(&store.Chat{
 		JID:                msg.ChatJID,
 		LastMessageAt:      msg.Timestamp,

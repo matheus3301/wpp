@@ -155,14 +155,16 @@ func (a *App) setupLayout() {
 			}
 		}
 
-		if currentPage == "chat" && event.Key() == tcell.KeyRune && event.Rune() == 'i' {
-			a.app.SetFocus(a.composer)
-			return nil
-		}
-
+		// Let text input widgets handle all keys normally.
 		focused := a.app.GetFocus()
 		if _, ok := focused.(*tview.InputField); ok {
 			return event
+		}
+
+		// 'i' focuses the composer (only when not already in an input field).
+		if currentPage == "chat" && event.Key() == tcell.KeyRune && event.Rune() == 'i' {
+			a.app.SetFocus(a.composer.InputField)
+			return nil
 		}
 
 		if a.registry.HandleEvent(currentPage, event) {

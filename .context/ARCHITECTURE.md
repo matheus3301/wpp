@@ -124,9 +124,10 @@ flowchart LR
         API["gRPC API server"]
         SM["Session manager"]
         WAA["WA adapter (whatsmeow integration)"]
-        SYNC["Sync engine"]
-        STORE["Store layer"]
         BUS["Event bus"]
+        SYNC["Sync engine (inbound)"]
+        OUTBOX["Outbox processor (outbound)"]
+        STORE["Store layer"]
     end
 
     TUI --> API
@@ -135,18 +136,22 @@ flowchart LR
     API --> STORE
     API --> BUS
     SM --> WAA
-    WAA --> SYNC
+    WAA -- "wa.* events" --> BUS
+    BUS -- "subscribes" --> SYNC
+    BUS -- "subscribes" --> OUTBOX
     SYNC --> STORE
-    SYNC --> BUS
+    OUTBOX --> STORE
+    OUTBOX -- "TextSender interface" --> WAA
 ```
 
 Component responsibilities:
 - `gRPC API server`: handles request/response APIs and stream subscriptions.
 - `Session manager`: resolves lifecycle state, startup mode, and lock coordination.
-- `WA adapter`: wraps WhatsApp protocol client and normalizes raw protocol events.
-- `Sync engine`: applies ingestion rules and emits domain events.
+- `WA adapter`: wraps WhatsApp protocol client, normalizes raw protocol events, publishes to event bus. Does not import sync or outbox directly.
+- `Sync engine`: subscribes to `wa.*` bus events and applies idempotent ingestion into `wpp.db`.
+- `Outbox processor`: polls the outbox table and sends queued messages via the `TextSender` interface (satisfied by WA adapter). Publishes `message.send_ack` / `message.send_failed` events.
 - `Store layer`: persistence, query execution, migration ownership for `wpp.db`.
-- `Event bus`: fanout for session, sync, and message streams to connected clients.
+- `Event bus`: decoupling point between WA adapter, sync engine, outbox, and API stream subscriptions. No direct imports between `wa`, `sync`, and `outbox`.
 
 `wpptui` internal architecture:
 - API client: gRPC request/stream client.
@@ -296,22 +301,33 @@ sequenceDiagram
 sequenceDiagram
     participant U as User
     participant T as wpptui
-    participant D as wppd
+    participant API as gRPC API
     participant DB as wpp.db
+    participant OB as Outbox processor
+    participant WA as WA adapter
     participant W as WhatsApp Web
+    participant B as Event bus
 
     U->>T: Submit text
-    T->>D: MessageService.SendText(client_msg_id, chat, text)
-    D->>DB: Insert outbox state=queued
-    D->>W: Send message
+    T->>API: MessageService.SendText(client_msg_id, chat, text)
+    API->>DB: Insert outbox state=queued
+    API-->>T: accepted=true
+    OB->>DB: Poll pending outbox entries
+    OB->>DB: Mark state=sending
+    OB->>WA: SendText(jid, text) via TextSender interface
+    WA->>W: Send message
     alt Send success
-        W-->>D: Message ACK
-        D->>DB: Update outbox state=sent and message status
-        D-->>T: message.send_ack
+        W-->>WA: Message ACK
+        WA-->>OB: server_msg_id
+        OB->>DB: Mark state=sent + server_msg_id
+        OB->>B: Publish message.send_ack
+        B-->>T: message.send_ack
     else Send failure
-        W-->>D: Error or timeout
-        D->>DB: Update outbox state=failed + error
-        D-->>T: message.send_failed
+        W-->>WA: Error or timeout
+        WA-->>OB: error
+        OB->>DB: Mark state=failed + error
+        OB->>B: Publish message.send_failed
+        B-->>T: message.send_failed
     end
 ```
 

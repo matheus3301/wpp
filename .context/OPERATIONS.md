@@ -108,14 +108,18 @@ Use only when session state is unrecoverable.
 3. Remove only target session directory artifacts.
 4. Recreate session through normal startup + auth flow.
 
-## 8. Security Hygiene Checklist
+## 8. Device Identity
+- WPP-TUI registers as `WPP-TUI` in WhatsApp's linked devices list (via `store.SetOSInfo`).
+- Re-linking is required after changing the device name (delete linked device on phone, scan QR again).
+
+## 9. Security Hygiene Checklist
 - Use strict file permissions (`0700` directories, `0600` files/sockets).
 - Avoid sharing session directories between users/machines without explicit secure transfer.
 - Keep sensitive identifiers and message content out of routine logs.
 - Treat `session.db` as sensitive credential material.
 - Use OS-level disk encryption where possible.
 
-## 9. Operational Anti-Patterns
+## 10. Operational Anti-Patterns
 - Running multiple daemons for the same session intentionally.
 - Manually editing SQLite files while daemon is active.
 - Reusing one session directory for multiple identities.
