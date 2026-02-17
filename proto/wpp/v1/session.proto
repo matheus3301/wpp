@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package wpp.v1;
+
+option go_package = "github.com/matheus3301/wpp/gen/wpp/v1;wppv1";
+
+import "wpp/v1/common.proto";
+
+service SessionService {
+  rpc GetSessionStatus(GetSessionStatusRequest) returns (GetSessionStatusResponse);
+  rpc StartAuth(StartAuthRequest) returns (stream AuthEvent);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+}
+
+message GetSessionStatusRequest {}
+
+message GetSessionStatusResponse {
+  string session = 1;
+  SessionStatus status = 2;
+  string status_message = 3;
+  int64 uptime_ms = 4;
+}
+
+message StartAuthRequest {}
+
+message AuthEvent {
+  string event_type = 1; // qr_code, authenticated, auth_failed
+  string qr_code = 2;    // populated when event_type = qr_code
+  string message = 3;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListSessionsRequest {}
+
+message SessionDescriptor {
+  string name = 1;
+  string path = 2;
+  bool daemon_running = 3;
+}
+
+message ListSessionsResponse {
+  repeated SessionDescriptor sessions = 1;
+}

@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package wpp.v1;
+
+option go_package = "github.com/matheus3301/wpp/gen/wpp/v1;wppv1";
+
+import "wpp/v1/common.proto";
+
+service ChatService {
+  rpc ListChats(ListChatsRequest) returns (ListChatsResponse);
+  rpc GetChat(GetChatRequest) returns (GetChatResponse);
+  rpc WatchChatUpdates(WatchChatUpdatesRequest) returns (stream EventEnvelope);
+}
+
+message ListChatsRequest {
+  Pagination pagination = 1;
+  string filter = 2;
+}
+
+message Chat {
+  string jid = 1;
+  string name = 2;
+  string last_message_preview = 3;
+  int64 last_message_at_unix_ms = 4;
+  int32 unread_count = 5;
+  bool is_group = 6;
+}
+
+message ListChatsResponse {
+  repeated Chat chats = 1;
+  PageInfo page_info = 2;
+}
+
+message GetChatRequest {
+  string jid = 1;
+}
+
+message GetChatResponse {
+  Chat chat = 1;
+}
+
+message WatchChatUpdatesRequest {
+  string cursor = 1;
+}

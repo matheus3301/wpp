@@ -6,7 +6,7 @@ This document defines the v1 local API surface and behavior expectations for fir
 Stability notice:
 - API contracts are private and unstable pre-1.0.
 - This file is intentionally method-level and behavior-focused.
-- Field-level proto schema is deferred until implementation drafting.
+- Field-level proto schema is now defined in `proto/wpp/v1/` with generated code in `gen/wpp/v1/`.
 
 Related docs:
 - [SPEC](./SPEC.md)

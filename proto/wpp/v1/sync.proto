@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package wpp.v1;
+
+option go_package = "github.com/matheus3301/wpp/gen/wpp/v1;wppv1";
+
+import "wpp/v1/common.proto";
+
+service SyncService {
+  rpc GetSyncStatus(GetSyncStatusRequest) returns (GetSyncStatusResponse);
+  rpc StartSync(StartSyncRequest) returns (StartSyncResponse);
+  rpc StopSync(StopSyncRequest) returns (StopSyncResponse);
+  rpc WatchSyncEvents(WatchSyncEventsRequest) returns (stream EventEnvelope);
+}
+
+message GetSyncStatusRequest {}
+
+message GetSyncStatusResponse {
+  bool syncing = 1;
+  int64 last_sync_at_unix_ms = 2;
+  int64 messages_synced = 3;
+  int64 chats_synced = 4;
+  string error_message = 5;
+}
+
+message StartSyncRequest {}
+
+message StartSyncResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message StopSyncRequest {}
+
+message StopSyncResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message WatchSyncEventsRequest {
+  string cursor = 1;
+}

@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package wpp.v1;
+
+option go_package = "github.com/matheus3301/wpp/gen/wpp/v1;wppv1";
+
+import "wpp/v1/common.proto";
+
+service MessageService {
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
+  rpc SearchMessages(SearchMessagesRequest) returns (SearchMessagesResponse);
+  rpc SendText(SendTextRequest) returns (SendTextResponse);
+  rpc WatchMessageEvents(WatchMessageEventsRequest) returns (stream EventEnvelope);
+}
+
+message ListMessagesRequest {
+  string chat_jid = 1;
+  Pagination pagination = 2;
+}
+
+message Message {
+  string id = 1;
+  string chat_jid = 2;
+  string sender_jid = 3;
+  string sender_name = 4;
+  string body = 5;
+  int64 timestamp_unix_ms = 6;
+  bool from_me = 7;
+  string message_type = 8; // text, image, etc.
+  string status = 9;       // sent, delivered, read, failed
+}
+
+message ListMessagesResponse {
+  repeated Message messages = 1;
+  PageInfo page_info = 2;
+}
+
+message SearchMessagesRequest {
+  string query = 1;
+  string chat_jid = 2; // optional: restrict to a specific chat
+  Pagination pagination = 3;
+}
+
+message SearchResult {
+  Message message = 1;
+  string snippet = 2;
+}
+
+message SearchMessagesResponse {
+  repeated SearchResult results = 1;
+  PageInfo page_info = 2;
+}
+
+message SendTextRequest {
+  string client_msg_id = 1;
+  string chat_jid = 2;
+  string text = 3;
+}
+
+message SendTextResponse {
+  bool accepted = 1;
+  string message = 2;
+}
+
+message WatchMessageEventsRequest {
+  string chat_jid = 1; // optional: filter to specific chat
+  string cursor = 2;
+}

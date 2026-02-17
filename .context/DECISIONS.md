@@ -47,6 +47,8 @@ Use this template for each new decision entry.
 | D-0008 | `.references` is read-only inspiration, no direct copy | Accepted | 2026-02-16 |
 | D-0009 | Spec-first sync rule for markdown docs | Accepted | 2026-02-16 |
 | D-0010 | Testing workflow is mandatory for code changes | Accepted | 2026-02-16 |
+| D-0011 | Adopt `golang-migrate` for embedded SQL migrations | Accepted | 2026-02-16 |
+| D-0012 | Adopt `BurntSushi/toml` for config format | Accepted | 2026-02-16 |
 
 ## 5. Active Decisions
 ### D-0001 - Canonical identity term is `session`
@@ -196,3 +198,30 @@ Use this template for each new decision entry.
   - [TESTING](./TESTING.md)
   - [AGENTS](../AGENTS.md)
   - [ROADMAP](./ROADMAP.md)
+
+### D-0011 - Adopt `golang-migrate` for embedded SQL migrations
+- Date: 2026-02-16
+- Status: Accepted
+- Context:
+  `wpp.db` needs versioned schema management that runs at daemon startup with migrations embedded in the binary.
+- Decision:
+  Use `github.com/golang-migrate/migrate/v4` with `embed.FS` and the `iofs` source driver for embedded SQL migrations.
+- Consequences:
+  - Schema changes are versioned, auditable, and embedded in the daemon binary.
+  - Adds a dependency but avoids hand-rolled migration logic.
+- Related Docs:
+  - [STACK](./STACK.md)
+  - [ARCHITECTURE](./ARCHITECTURE.md)
+
+### D-0012 - Adopt `BurntSushi/toml` for config format
+- Date: 2026-02-16
+- Status: Accepted
+- Context:
+  Global config (`~/.wpp/config.toml`) needs a parser. TOML is human-readable and widely used in Go CLI tools.
+- Decision:
+  Use `github.com/BurntSushi/toml` for reading and writing the global config file.
+- Consequences:
+  - Simple, well-maintained dependency for config parsing.
+  - Config format is TOML, consistent with Go ecosystem conventions.
+- Related Docs:
+  - [STACK](./STACK.md)

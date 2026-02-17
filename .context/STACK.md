@@ -36,6 +36,8 @@ Related docs:
 | Persistence driver | `github.com/mattn/go-sqlite3` | Adopted | `wppd` store layer | Local-first storage and predictable ops model | v1 persistence split: `session.db` + `wpp.db` |
 | TUI runtime | `github.com/gdamore/tcell/v2` | Adopted | `wpptui` only | Terminal control, input handling, rendering primitives | Foundation for keyboard-first UX |
 | TUI components | `github.com/rivo/tview` | Adopted | `wpptui` only | Productive layout and widget composition with tcell | Keep custom widgets focused on domain needs |
+| Schema migration | `github.com/golang-migrate/migrate/v4` | Adopted | `wppd` store layer | Embedded SQL migrations for `wpp.db` schema versioning | Migrations embedded via `embed.FS` + `iofs` driver |
+| Config format | `github.com/BurntSushi/toml` | Adopted | Shared (config loader) | Minimal TOML parser for `~/.wpp/config.toml` | Low dependency footprint, human-readable config format |
 
 ## 5. Usage Boundaries by Component
 ### `wppd`

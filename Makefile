@@ -1,4 +1,4 @@
-.PHONY: references fmt tidy vet test lint
+.PHONY: references fmt tidy vet test lint proto build
 
 references:
 	@mkdir -p .references
@@ -38,7 +38,7 @@ vet:
 		exit 0; \
 	fi; \
 	echo "run: go vet $$pkgs"; \
-	go vet $$pkgs
+	go vet -tags fts5 $$pkgs
 
 test:
 	@pkgs="$$(go list ./... 2>/dev/null || true)"; \
@@ -47,7 +47,7 @@ test:
 		exit 0; \
 	fi; \
 	echo "run: go test $$pkgs"; \
-	go test $$pkgs
+	go test -tags fts5 $$pkgs
 
 lint: fmt tidy vet
 	@pkgs="$$(go list ./... 2>/dev/null || true)"; \
@@ -56,4 +56,21 @@ lint: fmt tidy vet
 		exit 0; \
 	fi; \
 	echo "run: golangci-lint run --fix"; \
-	golangci-lint run --fix
+	golangci-lint run --fix --build-tags fts5
+
+proto:
+	@echo "run: protoc codegen"
+	@rm -rf gen/wpp/v1/*.go
+	@protoc \
+		--proto_path=proto \
+		--go_out=. --go_opt=module=github.com/matheus3301/wpp \
+		--go-grpc_out=. --go-grpc_opt=module=github.com/matheus3301/wpp \
+		proto/wpp/v1/*.proto
+	@echo "ok: proto generated"
+
+build:
+	@echo "run: go build"
+	@go build -tags fts5 -o bin/wppd ./cmd/wppd
+	@go build -tags fts5 -o bin/wpptui ./cmd/wpptui
+	@go build -tags fts5 -o bin/wppctl ./cmd/wppctl
+	@echo "ok: binaries built"

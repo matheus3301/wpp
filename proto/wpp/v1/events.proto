@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package wpp.v1;
+
+option go_package = "github.com/matheus3301/wpp/gen/wpp/v1;wppv1";
+
+// Typed event payloads embedded in EventEnvelope.payload.
+
+message SessionQRGenerated {
+  string qr_code = 1;
+}
+
+message SessionAuthenticated {
+  string session = 1;
+}
+
+message SessionAuthFailed {
+  string reason = 1;
+}
+
+message SessionLoggedOut {
+  string session = 1;
+}
+
+message SyncConnecting {}
+
+message SyncConnected {}
+
+message SyncHistoryBatch {
+  int32 messages_count = 1;
+  int32 chats_count = 2;
+}
+
+message SyncReconnecting {
+  int32 attempt = 1;
+}
+
+message SyncDisconnected {
+  string reason = 1;
+}
+
+message SyncDegraded {
+  string reason = 1;
+}
+
+message MessageUpserted {
+  string chat_jid = 1;
+  string msg_id = 2;
+  bool is_new = 3;
+}
+
+message MessageSendAck {
+  string client_msg_id = 1;
+  string server_msg_id = 2;
+}
+
+message MessageSendFailed {
+  string client_msg_id = 1;
+  string reason = 2;
+}
