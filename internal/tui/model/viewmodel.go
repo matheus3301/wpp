@@ -2,6 +2,8 @@ package model
 
 import (
 	"context"
+	"io"
+	"log"
 	"sync"
 	"time"
 
@@ -37,7 +39,8 @@ func (vm *ViewModel) RefreshCh() <-chan struct{} {
 	return vm.refreshCh
 }
 
-func (vm *ViewModel) signalRefresh() {
+// SignalRefresh sends a non-blocking signal on the refresh channel.
+func (vm *ViewModel) SignalRefresh() {
 	select {
 	case vm.refreshCh <- struct{}{}:
 	default:
@@ -53,7 +56,7 @@ func (vm *ViewModel) LoadSessionStatus(ctx context.Context) error {
 	vm.mu.Lock()
 	vm.SessionStatus = resp
 	vm.mu.Unlock()
-	vm.signalRefresh()
+	vm.SignalRefresh()
 	return nil
 }
 
@@ -66,7 +69,7 @@ func (vm *ViewModel) LoadSyncStatus(ctx context.Context) error {
 	vm.mu.Lock()
 	vm.SyncStatus = resp
 	vm.mu.Unlock()
-	vm.signalRefresh()
+	vm.SignalRefresh()
 	return nil
 }
 
@@ -81,7 +84,7 @@ func (vm *ViewModel) LoadChats(ctx context.Context) error {
 	vm.mu.Lock()
 	vm.Chats = resp.Chats
 	vm.mu.Unlock()
-	vm.signalRefresh()
+	vm.SignalRefresh()
 	return nil
 }
 
@@ -98,7 +101,7 @@ func (vm *ViewModel) LoadMessages(ctx context.Context, chatJID string) error {
 	vm.ActiveChatJID = chatJID
 	vm.Messages = resp.Messages
 	vm.mu.Unlock()
-	vm.signalRefresh()
+	vm.SignalRefresh()
 	return nil
 }
 
@@ -127,7 +130,7 @@ func (vm *ViewModel) SendText(ctx context.Context, chatJID, text, clientMsgID st
 	if resp.Accepted {
 		vm.Flash.Set("Message sent", 3*time.Second)
 	}
-	vm.signalRefresh()
+	vm.SignalRefresh()
 	return nil
 }
 
@@ -150,4 +153,80 @@ func (vm *ViewModel) GetSessionStatus() *wppv1.GetSessionStatusResponse {
 	vm.mu.RLock()
 	defer vm.mu.RUnlock()
 	return vm.SessionStatus
+}
+
+// GetActiveChatJID returns the JID of the currently active chat.
+func (vm *ViewModel) GetActiveChatJID() string {
+	vm.mu.RLock()
+	defer vm.mu.RUnlock()
+	return vm.ActiveChatJID
+}
+
+// StartWatchingMessages subscribes to the message event stream.
+// On each event it reloads messages for the active chat and signals refresh.
+func (vm *ViewModel) StartWatchingMessages(ctx context.Context) {
+	go func() {
+		for {
+			if err := vm.watchMessages(ctx); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				log.Printf("message stream error: %v, reconnecting...", err)
+				time.Sleep(2 * time.Second)
+			}
+		}
+	}()
+}
+
+func (vm *ViewModel) watchMessages(ctx context.Context) error {
+	stream, err := vm.client.Message.WatchMessageEvents(ctx, &wppv1.WatchMessageEventsRequest{})
+	if err != nil {
+		return err
+	}
+	for {
+		_, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		chatJID := vm.GetActiveChatJID()
+		if chatJID != "" {
+			_ = vm.LoadMessages(ctx, chatJID)
+		}
+	}
+}
+
+// StartWatchingChats subscribes to the chat update stream.
+// On each event it reloads the chat list and signals refresh.
+func (vm *ViewModel) StartWatchingChats(ctx context.Context) {
+	go func() {
+		for {
+			if err := vm.watchChats(ctx); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				log.Printf("chat stream error: %v, reconnecting...", err)
+				time.Sleep(2 * time.Second)
+			}
+		}
+	}()
+}
+
+func (vm *ViewModel) watchChats(ctx context.Context) error {
+	stream, err := vm.client.Chat.WatchChatUpdates(ctx, &wppv1.WatchChatUpdatesRequest{})
+	if err != nil {
+		return err
+	}
+	for {
+		_, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		_ = vm.LoadChats(ctx)
+	}
 }

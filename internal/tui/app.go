@@ -101,12 +101,8 @@ func (a *App) setupCallbacks() {
 			clientMsgID := uuid.New().String()
 			if err := a.vm.SendText(a.ctx, chatJID, text, clientMsgID); err != nil {
 				a.vm.Flash.Set("Send failed: "+err.Error(), 5*time.Second)
+				a.vm.SignalRefresh()
 			}
-			_ = a.vm.LoadMessages(a.ctx, chatJID)
-			a.app.QueueUpdateDraw(func() {
-				a.msgView.Update(a.vm.GetMessages())
-				a.statusBar.SetFlash(a.vm.Flash.Get())
-			})
 		}()
 	})
 
@@ -225,14 +221,17 @@ func (a *App) Run() error {
 			}
 		})
 
+		a.vm.StartWatchingMessages(a.ctx)
+		a.vm.StartWatchingChats(a.ctx)
 		a.startRefreshLoop()
+		a.startRefreshListener()
 	}()
 
 	return a.app.Run()
 }
 
 func (a *App) startRefreshLoop() {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		for {
 			select {
@@ -257,6 +256,33 @@ func (a *App) startRefreshLoop() {
 				})
 			case <-a.ctx.Done():
 				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+// startRefreshListener listens for ViewModel refresh signals and updates the UI.
+func (a *App) startRefreshListener() {
+	go func() {
+		for {
+			select {
+			case <-a.vm.RefreshCh():
+				a.app.QueueUpdateDraw(func() {
+					currentPage, _ := a.pages.GetFrontPage()
+					switch currentPage {
+					case "chats":
+						a.chatList.Update(a.vm.GetChats())
+					case "chat":
+						a.msgView.Update(a.vm.GetMessages())
+					}
+					ss := a.vm.GetSessionStatus()
+					if ss != nil {
+						a.statusBar.SetStatus(ss.StatusMessage)
+					}
+					a.statusBar.SetFlash(a.vm.Flash.Get())
+				})
+			case <-a.ctx.Done():
 				return
 			}
 		}
