@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/matheus3301/wpp/internal/bus"
+	"github.com/matheus3301/wpp/internal/status"
 	"github.com/matheus3301/wpp/internal/store"
 	"go.uber.org/zap"
 )
@@ -16,20 +17,22 @@ type TextSender interface {
 
 // Sender drains the outbox and sends messages via the WhatsApp adapter.
 type Sender struct {
-	db     *store.DB
-	sender TextSender
-	bus    *bus.Bus
-	logger *zap.Logger
-	cancel context.CancelFunc
+	db      *store.DB
+	sender  TextSender
+	bus     *bus.Bus
+	machine *status.Machine
+	logger  *zap.Logger
+	cancel  context.CancelFunc
 }
 
 // NewSender creates a new outbox sender.
-func NewSender(db *store.DB, sender TextSender, b *bus.Bus, logger *zap.Logger) *Sender {
+func NewSender(db *store.DB, sender TextSender, b *bus.Bus, machine *status.Machine, logger *zap.Logger) *Sender {
 	return &Sender{
-		db:     db,
-		sender: sender,
-		bus:    b,
-		logger: logger,
+		db:      db,
+		sender:  sender,
+		bus:     b,
+		machine: machine,
+		logger:  logger,
 	}
 }
 
@@ -61,6 +64,14 @@ func (s *Sender) loop(ctx context.Context) {
 }
 
 func (s *Sender) processPending(ctx context.Context) {
+	// Skip sending when not connected (2.3).
+	if s.machine != nil {
+		current := s.machine.Current()
+		if current != status.Ready {
+			return
+		}
+	}
+
 	pending, err := s.db.PendingOutbox()
 	if err != nil {
 		s.logger.Error("failed to read outbox", zap.Error(err))
@@ -73,8 +84,7 @@ func (s *Sender) processPending(ctx context.Context) {
 			continue
 		}
 
-		// Optimistic insert: show the message in the UI immediately.
-		now := time.Now().UnixMilli()
+		// Update the existing message row to 'sending' status.
 		_ = s.db.UpsertMessage(&store.Message{
 			ChatJID:     entry.ChatJID,
 			MsgID:       entry.ClientMsgID,
@@ -82,7 +92,7 @@ func (s *Sender) processPending(ctx context.Context) {
 			MessageType: "text",
 			FromMe:      true,
 			Status:      "sending",
-			Timestamp:   now,
+			Timestamp:   time.Now().UnixMilli(),
 		})
 		s.bus.Publish(bus.Event{
 			Kind:      "message.upserted",
@@ -94,11 +104,10 @@ func (s *Sender) processPending(ctx context.Context) {
 		if err != nil {
 			s.logger.Error("failed to send message", zap.Error(err), zap.String("client_msg_id", entry.ClientMsgID))
 			_ = s.db.MarkOutboxFailed(entry.ClientMsgID, err.Error())
-			// Update optimistic message to failed status.
 			_ = s.db.UpsertMessage(&store.Message{
 				ChatJID: entry.ChatJID, MsgID: entry.ClientMsgID,
 				Body: entry.Body, MessageType: "text", FromMe: true,
-				Status: "failed", Timestamp: now,
+				Status: "failed", Timestamp: time.Now().UnixMilli(),
 			})
 			s.bus.Publish(bus.Event{
 				Kind:      "message.send_failed",
@@ -115,11 +124,10 @@ func (s *Sender) processPending(ctx context.Context) {
 			s.logger.Error("failed to mark sent", zap.Error(err), zap.String("client_msg_id", entry.ClientMsgID))
 		}
 
-		// Update optimistic message to sent status.
 		_ = s.db.UpsertMessage(&store.Message{
 			ChatJID: entry.ChatJID, MsgID: entry.ClientMsgID,
 			Body: entry.Body, MessageType: "text", FromMe: true,
-			Status: "sent", Timestamp: now,
+			Status: "sent", Timestamp: time.Now().UnixMilli(),
 		})
 
 		s.logger.Info("message sent", zap.String("client_msg_id", entry.ClientMsgID), zap.String("server_msg_id", serverMsgID))

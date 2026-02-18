@@ -77,4 +77,8 @@ func TestDropOnFullBuffer(t *testing.T) {
 	if evt.Kind != "test.one" {
 		t.Errorf("got %q, want test.one", evt.Kind)
 	}
+
+	if b.Dropped.Load() != 1 {
+		t.Errorf("dropped = %d, want 1", b.Dropped.Load())
+	}
 }

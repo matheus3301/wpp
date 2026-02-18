@@ -35,7 +35,8 @@ func (h *EventHandler) Handle(rawEvt any) {
 		h.handleMessage(evt)
 	case *events.Connected:
 		h.logger.Info("WhatsApp connected")
-		if h.machine.Current() == status.AuthRequired {
+		current := h.machine.Current()
+		if current == status.AuthRequired || current == status.Reconnecting {
 			_ = h.machine.Transition(status.Connecting)
 		}
 		_ = h.machine.Transition(status.Syncing)

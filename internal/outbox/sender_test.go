@@ -54,7 +54,7 @@ func TestSenderProcessesPendingMessages(t *testing.T) {
 	b := bus.New()
 	mock := &mockSender{}
 	logger, _ := zap.NewDevelopment()
-	s := NewSender(db, mock, b, logger)
+	s := NewSender(db, mock, b, nil, logger)
 
 	// Subscribe to ack events.
 	ch, unsub := b.Subscribe("message.send_ack", 10)
@@ -107,7 +107,7 @@ func TestSenderHandlesFailure(t *testing.T) {
 	b := bus.New()
 	mock := &mockSender{err: fmt.Errorf("network error")}
 	logger, _ := zap.NewDevelopment()
-	s := NewSender(db, mock, b, logger)
+	s := NewSender(db, mock, b, nil, logger)
 
 	// Subscribe to failure events.
 	ch, unsub := b.Subscribe("message.send_failed", 10)
@@ -155,7 +155,7 @@ func TestSenderOptimisticInsert(t *testing.T) {
 	b := bus.New()
 	mock := &mockSender{delay: 500 * time.Millisecond}
 	logger, _ := zap.NewDevelopment()
-	s := NewSender(db, mock, b, logger)
+	s := NewSender(db, mock, b, nil, logger)
 
 	if err := db.UpsertChat(&store.Chat{JID: "chat@s"}); err != nil {
 		t.Fatal(err)
@@ -219,7 +219,7 @@ func TestSenderOptimisticInsertOnFailure(t *testing.T) {
 	b := bus.New()
 	mock := &mockSender{err: fmt.Errorf("timeout"), delay: 200 * time.Millisecond}
 	logger, _ := zap.NewDevelopment()
-	s := NewSender(db, mock, b, logger)
+	s := NewSender(db, mock, b, nil, logger)
 
 	if err := db.UpsertChat(&store.Chat{JID: "chat@s"}); err != nil {
 		t.Fatal(err)

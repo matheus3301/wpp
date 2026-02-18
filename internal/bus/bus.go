@@ -3,13 +3,18 @@ package bus
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
+
+	"go.uber.org/zap"
 )
 
 // Bus is an in-process publish/subscribe event bus with namespace filtering.
 type Bus struct {
-	mu   sync.RWMutex
-	subs map[int]*subscription
-	next int
+	mu      sync.RWMutex
+	subs    map[int]*subscription
+	next    int
+	logger  *zap.Logger
+	Dropped atomic.Int64
 }
 
 type subscription struct {
@@ -24,6 +29,14 @@ func New() *Bus {
 	}
 }
 
+// NewWithLogger creates a new event bus that logs dropped events.
+func NewWithLogger(logger *zap.Logger) *Bus {
+	return &Bus{
+		subs:   make(map[int]*subscription),
+		logger: logger,
+	}
+}
+
 // Publish sends an event to all subscribers whose namespace is a prefix of event.Kind.
 func (b *Bus) Publish(evt Event) {
 	b.mu.RLock()
@@ -33,7 +46,13 @@ func (b *Bus) Publish(evt Event) {
 			select {
 			case sub.ch <- evt:
 			default:
-				// Drop event if subscriber is full (non-blocking).
+				b.Dropped.Add(1)
+				if b.logger != nil {
+					b.logger.Warn("bus event dropped",
+						zap.String("kind", evt.Kind),
+						zap.String("subscriber_ns", sub.namespace),
+					)
+				}
 			}
 		}
 	}

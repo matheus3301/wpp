@@ -57,9 +57,9 @@ func TestDaemonLifecycle(t *testing.T) {
 	b := bus.New()
 	machine := status.NewMachine(b)
 	sessionSvc := api.NewSessionService(sessionName, machine, nil, b)
-	syncSvc := api.NewSyncService(nil, b)
-	chatSvc := api.NewChatService(db, b)
-	messageSvc := api.NewMessageService(db, b)
+	syncSvc := api.NewSyncService(nil, b, machine, sessionName)
+	chatSvc := api.NewChatService(db, b, sessionName)
+	messageSvc := api.NewMessageService(db, b, sessionName)
 
 	// Create gRPC server manually.
 	grpcSrv := grpc.NewServer()
@@ -324,9 +324,9 @@ func TestFxModuleWiring(t *testing.T) {
 		p,
 		zap.NewNop(),
 		api.NewSessionService("fxtest", status.NewMachine(nil), nil, nil),
-		api.NewSyncService(nil, nil),
-		api.NewChatService(nil, nil),
-		api.NewMessageService(nil, nil),
+		api.NewSyncService(nil, nil, status.NewMachine(nil), "fxtest"),
+		api.NewChatService(nil, nil, "fxtest"),
+		api.NewMessageService(nil, nil, "fxtest"),
 	)
 	if err != nil {
 		t.Fatalf("NewServer() with Params failed: %v", err)

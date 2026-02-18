@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	wppv1 "github.com/matheus3301/wpp/gen/wpp/v1"
@@ -15,13 +16,14 @@ import (
 type MessageService struct {
 	wppv1.UnimplementedMessageServiceServer
 
-	db  *store.DB
-	bus *bus.Bus
+	db          *store.DB
+	bus         *bus.Bus
+	sessionName string
 }
 
 // NewMessageService creates a new message service backed by the store.
-func NewMessageService(db *store.DB, b *bus.Bus) *MessageService {
-	return &MessageService{db: db, bus: b}
+func NewMessageService(db *store.DB, b *bus.Bus, sessionName string) *MessageService {
+	return &MessageService{db: db, bus: b, sessionName: sessionName}
 }
 
 func (s *MessageService) ListMessages(_ context.Context, req *wppv1.ListMessagesRequest) (*wppv1.ListMessagesResponse, error) {
@@ -79,14 +81,22 @@ func (s *MessageService) SearchMessages(_ context.Context, req *wppv1.SearchMess
 }
 
 func (s *MessageService) SendText(_ context.Context, req *wppv1.SendTextRequest) (*wppv1.SendTextResponse, error) {
-	if err := s.db.QueueOutbox(req.ClientMsgId, req.ChatJid, req.Text); err != nil {
+	if err := s.db.QueueOutboxWithMessage(req.ClientMsgId, req.ChatJid, req.Text); err != nil {
 		return nil, grpcstatus.Errorf(codes.Internal, "queue outbox: %v", err)
 	}
+
+	// Notify TUI immediately so the message appears before the sender picks it up.
+	s.bus.Publish(bus.Event{
+		Kind:      "message.upserted",
+		Timestamp: time.Now(),
+		Payload:   map[string]string{"chat_jid": req.ChatJid, "msg_id": req.ClientMsgId},
+	})
+
 	return &wppv1.SendTextResponse{Accepted: true, Message: "queued"}, nil
 }
 
 func (s *MessageService) WatchMessageEvents(req *wppv1.WatchMessageEventsRequest, stream wppv1.MessageService_WatchMessageEventsServer) error {
-	ch, unsub := s.bus.Subscribe("message.", 64)
+	ch, unsub := s.bus.Subscribe("message.", 256)
 	defer unsub()
 
 	for {
@@ -94,6 +104,7 @@ func (s *MessageService) WatchMessageEvents(req *wppv1.WatchMessageEventsRequest
 		case evt := <-ch:
 			if err := stream.Send(&wppv1.EventEnvelope{
 				EventId:          uuid.New().String(),
+				Session:          s.sessionName,
 				OccurredAtUnixMs: evt.Timestamp.UnixMilli(),
 				Kind:             evt.Kind,
 				PayloadVersion:   1,

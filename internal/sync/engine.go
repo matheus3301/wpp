@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/matheus3301/wpp/internal/bus"
@@ -80,6 +81,7 @@ func (e *Engine) handleEvent(evt bus.Event) {
 func (e *Engine) IngestMessage(msg *store.Message) error {
 	if err := e.db.UpsertChat(&store.Chat{
 		JID:                msg.ChatJID,
+		IsGroup:            isGroup(msg.ChatJID),
 		LastMessageAt:      msg.Timestamp,
 		LastMessagePreview: truncate(msg.Body, 100),
 	}); err != nil {
@@ -115,13 +117,14 @@ func (e *Engine) IngestHistoryBatch(msgs []*store.Message) error {
 
 	for _, sm := range msgs {
 		if _, err := tx.Exec(`
-			INSERT INTO chats (jid, last_message_at, last_message_preview, updated_at)
-			VALUES (?, ?, ?, ?)
+			INSERT INTO chats (jid, is_group, last_message_at, last_message_preview, updated_at)
+			VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(jid) DO UPDATE SET
+				is_group = excluded.is_group,
 				last_message_at = MAX(chats.last_message_at, excluded.last_message_at),
 				last_message_preview = CASE WHEN excluded.last_message_at > chats.last_message_at THEN excluded.last_message_preview ELSE chats.last_message_preview END,
 				updated_at = excluded.updated_at`,
-			sm.ChatJID, sm.Timestamp, truncate(sm.Body, 100), time.Now().UnixMilli()); err != nil {
+			sm.ChatJID, isGroup(sm.ChatJID), sm.Timestamp, truncate(sm.Body, 100), time.Now().UnixMilli()); err != nil {
 			return fmt.Errorf("upsert chat in batch: %w", err)
 		}
 		chatsCount++
@@ -153,6 +156,10 @@ func (e *Engine) IngestHistoryBatch(msgs []*store.Message) error {
 	})
 
 	return nil
+}
+
+func isGroup(jid string) bool {
+	return strings.HasSuffix(jid, "@g.us")
 }
 
 func truncate(s string, maxLen int) string {

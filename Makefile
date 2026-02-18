@@ -1,4 +1,4 @@
-.PHONY: references fmt tidy vet test lint proto build
+.PHONY: references fmt tidy vet test lint proto build coverage
 
 references:
 	@mkdir -p .references
@@ -67,6 +67,16 @@ proto:
 		--go-grpc_out=. --go-grpc_opt=module=github.com/matheus3301/wpp \
 		proto/wpp/v1/*.proto
 	@echo "ok: proto generated"
+
+coverage:
+	@pkgs="$$(go list ./... 2>/dev/null || true)"; \
+	if [ -z "$$pkgs" ]; then \
+		echo "skip: no Go packages found"; \
+		exit 0; \
+	fi; \
+	echo "run: go test -coverprofile"; \
+	go test -tags fts5 -coverprofile=coverage.out $$pkgs; \
+	go tool cover -func=coverage.out | tail -1
 
 build:
 	@echo "run: go build"

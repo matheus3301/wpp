@@ -15,13 +15,14 @@ import (
 type ChatService struct {
 	wppv1.UnimplementedChatServiceServer
 
-	db  *store.DB
-	bus *bus.Bus
+	db          *store.DB
+	bus         *bus.Bus
+	sessionName string
 }
 
 // NewChatService creates a new chat service backed by the store.
-func NewChatService(db *store.DB, b *bus.Bus) *ChatService {
-	return &ChatService{db: db, bus: b}
+func NewChatService(db *store.DB, b *bus.Bus, sessionName string) *ChatService {
+	return &ChatService{db: db, bus: b, sessionName: sessionName}
 }
 
 func (s *ChatService) ListChats(_ context.Context, req *wppv1.ListChatsRequest) (*wppv1.ListChatsResponse, error) {
@@ -61,7 +62,7 @@ func (s *ChatService) GetChat(_ context.Context, req *wppv1.GetChatRequest) (*wp
 }
 
 func (s *ChatService) WatchChatUpdates(_ *wppv1.WatchChatUpdatesRequest, stream wppv1.ChatService_WatchChatUpdatesServer) error {
-	ch, unsub := s.bus.Subscribe("message.", 64)
+	ch, unsub := s.bus.Subscribe("message.", 256)
 	defer unsub()
 
 	for {
@@ -69,6 +70,7 @@ func (s *ChatService) WatchChatUpdates(_ *wppv1.WatchChatUpdatesRequest, stream 
 		case evt := <-ch:
 			if err := stream.Send(&wppv1.EventEnvelope{
 				EventId:          uuid.New().String(),
+				Session:          s.sessionName,
 				OccurredAtUnixMs: evt.Timestamp.UnixMilli(),
 				Kind:             evt.Kind,
 				PayloadVersion:   1,

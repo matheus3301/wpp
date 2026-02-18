@@ -2,11 +2,11 @@ package api
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	wppv1 "github.com/matheus3301/wpp/gen/wpp/v1"
 	"github.com/matheus3301/wpp/internal/bus"
+	"github.com/matheus3301/wpp/internal/status"
 	"github.com/matheus3301/wpp/internal/wa"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -17,22 +17,27 @@ import (
 type SyncService struct {
 	wppv1.UnimplementedSyncServiceServer
 
-	adapter *wa.Adapter
-	bus     *bus.Bus
-	syncing bool
+	adapter     *wa.Adapter
+	bus         *bus.Bus
+	machine     *status.Machine
+	sessionName string
 }
 
 // NewSyncService creates a new sync service.
-func NewSyncService(adapter *wa.Adapter, b *bus.Bus) *SyncService {
+func NewSyncService(adapter *wa.Adapter, b *bus.Bus, machine *status.Machine, sessionName string) *SyncService {
 	return &SyncService{
-		adapter: adapter,
-		bus:     b,
+		adapter:     adapter,
+		bus:         b,
+		machine:     machine,
+		sessionName: sessionName,
 	}
 }
 
 func (s *SyncService) GetSyncStatus(_ context.Context, _ *wppv1.GetSyncStatusRequest) (*wppv1.GetSyncStatusResponse, error) {
+	current := s.machine.Current()
+	syncing := current == status.Syncing || current == status.Ready
 	return &wppv1.GetSyncStatusResponse{
-		Syncing: s.syncing,
+		Syncing: syncing,
 	}, nil
 }
 
@@ -40,13 +45,13 @@ func (s *SyncService) StartSync(_ context.Context, _ *wppv1.StartSyncRequest) (*
 	if s.adapter == nil {
 		return nil, grpcstatus.Errorf(codes.Unavailable, "adapter not initialized")
 	}
-	if s.syncing {
+	current := s.machine.Current()
+	if current == status.Syncing || current == status.Ready {
 		return &wppv1.StartSyncResponse{Success: true, Message: "already syncing"}, nil
 	}
 	if err := s.adapter.Connect(); err != nil {
 		return nil, grpcstatus.Errorf(codes.Internal, "connect: %v", err)
 	}
-	s.syncing = true
 	return &wppv1.StartSyncResponse{Success: true, Message: "sync started"}, nil
 }
 
@@ -55,21 +60,20 @@ func (s *SyncService) StopSync(_ context.Context, _ *wppv1.StopSyncRequest) (*wp
 		return nil, grpcstatus.Errorf(codes.Unavailable, "adapter not initialized")
 	}
 	s.adapter.Disconnect()
-	s.syncing = false
 	return &wppv1.StopSyncResponse{Success: true, Message: "sync stopped"}, nil
 }
 
 func (s *SyncService) WatchSyncEvents(_ *wppv1.WatchSyncEventsRequest, stream wppv1.SyncService_WatchSyncEventsServer) error {
-	ch, unsub := s.bus.Subscribe("sync.", 64)
+	ch, unsub := s.bus.Subscribe("sync.", 256)
 	defer unsub()
 
 	for {
 		select {
 		case evt := <-ch:
-			payload, _ := proto.Marshal(&wppv1.SyncConnected{})
+			payload, _ := marshalSyncPayload(evt.Kind)
 			if err := stream.Send(&wppv1.EventEnvelope{
 				EventId:          uuid.New().String(),
-				Session:          "",
+				Session:          s.sessionName,
 				OccurredAtUnixMs: evt.Timestamp.UnixMilli(),
 				Kind:             evt.Kind,
 				PayloadVersion:   1,
@@ -83,15 +87,24 @@ func (s *SyncService) WatchSyncEvents(_ *wppv1.WatchSyncEventsRequest, stream wp
 	}
 }
 
-// SetSyncing is used internally to update sync state from lifecycle hooks.
-func (s *SyncService) SetSyncing(syncing bool) {
-	s.syncing = syncing
-}
-
-// LastSyncAt returns the timestamp for API responses.
-func (s *SyncService) LastSyncAt() int64 {
-	if s.syncing {
-		return time.Now().UnixMilli()
+// marshalSyncPayload returns the correct proto payload for each sync event kind.
+func marshalSyncPayload(kind string) ([]byte, error) {
+	var msg proto.Message
+	switch kind {
+	case "sync.connected":
+		msg = &wppv1.SyncConnected{}
+	case "sync.disconnected":
+		msg = &wppv1.SyncDisconnected{}
+	case "sync.reconnecting":
+		msg = &wppv1.SyncReconnecting{}
+	case "sync.history_batch":
+		msg = &wppv1.SyncHistoryBatch{}
+	case "sync.connecting":
+		msg = &wppv1.SyncConnecting{}
+	case "sync.degraded":
+		msg = &wppv1.SyncDegraded{}
+	default:
+		msg = &wppv1.SyncConnected{}
 	}
-	return 0
+	return proto.Marshal(msg)
 }
