@@ -33,7 +33,7 @@ Canonical first-party CLI contracts:
 ### 3.1 `SessionService`
 | Method | Responsibility | Input/Output Intent | Side Effects | Stream Semantics |
 |---|---|---|---|---|
-| `GetSessionStatus` | Return current session runtime/auth state | Input: current session context; Output: session status snapshot | None | Unary |
+| `GetSessionStatus` | Return current session runtime/auth state and metadata | Input: current session context; Output: session status snapshot including phone_number, chat_count, message_count | None | Unary |
 | `StartAuth` | Initiate QR auth flow for current session | Input: auth start request; Output: stream of auth lifecycle events | May persist credentials to `session.db` on success | Server streaming |
 | `Logout` | Invalidate active linked session | Input: logout request; Output: operation result | Clears/invalidate auth state; may trigger sync stop | Unary |
 | `ListSessions` | Return known sessions from local registry | Input: optional filters; Output: session descriptors | None | Unary |

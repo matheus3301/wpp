@@ -6,22 +6,51 @@ import (
 
 	qrcode "github.com/skip2/go-qrcode"
 
+	"github.com/matheus3301/wpp/internal/tui/ui"
 	"github.com/rivo/tview"
 )
 
 // AuthView displays the QR code for authentication.
 type AuthView struct {
 	*tview.TextView
+	theme *ui.Theme
 }
 
 // NewAuthView creates a new auth view.
-func NewAuthView() *AuthView {
+func NewAuthView(theme *ui.Theme) *AuthView {
 	tv := tview.NewTextView().
 		SetDynamicColors(true).
 		SetTextAlign(tview.AlignCenter)
-	tv.SetBorder(true).SetTitle(" Authentication Required ")
+	tv.SetBorder(true)
+	tv.SetBorderColor(theme.BorderColor)
+	tv.SetBackgroundColor(theme.BgColor)
+	tv.SetTextColor(theme.FgColor)
+	tv.SetTitle(" Authentication Required ")
+	tv.SetTitleColor(theme.TitleColor)
 
-	return &AuthView{TextView: tv}
+	return &AuthView{
+		TextView: tv,
+		theme:    theme,
+	}
+}
+
+// Name implements Component.
+func (av *AuthView) Name() string { return "Auth" }
+
+// Init implements Component.
+func (av *AuthView) Init() {}
+
+// Start implements Component.
+func (av *AuthView) Start() {}
+
+// Stop implements Component.
+func (av *AuthView) Stop() {}
+
+// Hints implements Component.
+func (av *AuthView) Hints() []ui.MenuHint {
+	return []ui.MenuHint{
+		{Key: "Esc", Description: "Back"},
+	}
 }
 
 // ShowQR renders a QR code string as a scannable ASCII art block.
@@ -39,7 +68,7 @@ func (av *AuthView) ShowMessage(msg string) {
 }
 
 // renderQR converts a string to a compact ASCII QR code using Unicode
-// half-block characters. Two bitmap rows become one terminal line.
+// half-block characters.
 func renderQR(content string) string {
 	qr, err := qrcode.New(content, qrcode.Low)
 	if err != nil {
@@ -56,12 +85,10 @@ func renderQR(content string) string {
 
 	var sb strings.Builder
 
-	// Each output line encodes two bitmap rows using half-block characters.
-	// This halves the vertical size. A ~57-module QR becomes ~29 lines.
 	for y := 0; y < rows; y += 2 {
 		sb.WriteString("  ")
 		for x := 0; x < cols; x++ {
-			top := bitmap[y][x] // true = black module
+			top := bitmap[y][x]
 			bot := false
 			if y+1 < rows {
 				bot = bitmap[y+1][x]

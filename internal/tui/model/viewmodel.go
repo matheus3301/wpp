@@ -9,7 +9,18 @@ import (
 
 	wppv1 "github.com/matheus3301/wpp/gen/wpp/v1"
 	"github.com/matheus3301/wpp/internal/tui/client"
+	"github.com/matheus3301/wpp/internal/tui/ui"
 )
+
+// SessionInfo holds cached session metadata for the header.
+type SessionInfo struct {
+	Session      string
+	Phone        string
+	Status       string
+	ChatCount    int32
+	MessageCount int32
+	Uptime       time.Duration
+}
 
 // ViewModel caches state from gRPC streams and signals UI refreshes.
 type ViewModel struct {
@@ -22,6 +33,7 @@ type ViewModel struct {
 	Messages      []*wppv1.Message
 	ActiveChatJID string
 	Flash         Flash
+	FlashUI       *ui.FlashModel
 
 	refreshCh chan struct{}
 }
@@ -30,6 +42,7 @@ type ViewModel struct {
 func NewViewModel(c *client.Client) *ViewModel {
 	return &ViewModel{
 		client:    c,
+		FlashUI:   ui.NewFlashModel(),
 		refreshCh: make(chan struct{}, 1),
 	}
 }
@@ -128,7 +141,7 @@ func (vm *ViewModel) SendText(ctx context.Context, chatJID, text, clientMsgID st
 		return err
 	}
 	if resp.Accepted {
-		vm.Flash.Set("Message sent", 3*time.Second)
+		vm.FlashUI.Info("Message sent")
 	}
 	vm.SignalRefresh()
 	return nil
@@ -155,6 +168,23 @@ func (vm *ViewModel) GetSessionStatus() *wppv1.GetSessionStatusResponse {
 	return vm.SessionStatus
 }
 
+// GetSessionInfo returns session data suitable for the header component.
+func (vm *ViewModel) GetSessionInfo() *ui.SessionData {
+	vm.mu.RLock()
+	defer vm.mu.RUnlock()
+	if vm.SessionStatus == nil {
+		return nil
+	}
+	return &ui.SessionData{
+		Session:      vm.SessionStatus.Session,
+		Phone:        vm.SessionStatus.PhoneNumber,
+		Status:       vm.SessionStatus.StatusMessage,
+		ChatCount:    vm.SessionStatus.ChatCount,
+		MessageCount: vm.SessionStatus.MessageCount,
+		Uptime:       time.Duration(vm.SessionStatus.UptimeMs) * time.Millisecond,
+	}
+}
+
 // GetActiveChatJID returns the JID of the currently active chat.
 func (vm *ViewModel) GetActiveChatJID() string {
 	vm.mu.RLock()
@@ -162,8 +192,19 @@ func (vm *ViewModel) GetActiveChatJID() string {
 	return vm.ActiveChatJID
 }
 
+// GetChatByJID returns a chat by its JID.
+func (vm *ViewModel) GetChatByJID(jid string) *wppv1.Chat {
+	vm.mu.RLock()
+	defer vm.mu.RUnlock()
+	for _, c := range vm.Chats {
+		if c.Jid == jid {
+			return c
+		}
+	}
+	return nil
+}
+
 // StartWatchingMessages subscribes to the message event stream.
-// On each event it reloads messages for the active chat and signals refresh.
 func (vm *ViewModel) StartWatchingMessages(ctx context.Context) {
 	go func() {
 		for {
@@ -199,7 +240,6 @@ func (vm *ViewModel) watchMessages(ctx context.Context) error {
 }
 
 // StartWatchingChats subscribes to the chat update stream.
-// On each event it reloads the chat list and signals refresh.
 func (vm *ViewModel) StartWatchingChats(ctx context.Context) {
 	go func() {
 		for {

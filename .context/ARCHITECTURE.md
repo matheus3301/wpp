@@ -153,12 +153,13 @@ Component responsibilities:
 - `Store layer`: persistence, query execution, migration ownership for `wpp.db`.
 - `Event bus`: decoupling point between WA adapter, sync engine, outbox, and API stream subscriptions. No direct imports between `wa`, `sync`, and `outbox`.
 
-`wpptui` internal architecture:
-- API client: gRPC request/stream client.
-- View-model state: cache of chats/messages/status from API events.
-- UI shell: panel layout and keyboard routing.
-- Composer/actions: send-text and command actions.
-- Status/flash layer: transient feedback and persistent state badges.
+`wpptui` internal architecture (k9s-inspired, see [TUI.md](./TUI.md)):
+- API client: gRPC request/stream client (`internal/tui/client/`).
+- View-model state: cache of chats/messages/status from API events (`internal/tui/model/`).
+- UI primitives: domain-agnostic components — theme, pages stack, crumbs, flash, prompt, menu, session info (`internal/tui/ui/`).
+- Domain views: conversation list, message thread, conversation info, search, auth, help (`internal/tui/views/`).
+- App shell: k9s-style layout with Header/Prompt/Content/Crumbs/Flash, stack navigation, command mode (`:`), filter mode (`/`), numeric shortcuts (`internal/tui/app.go`).
+- Contact name resolution: store queries JOIN contacts table for display name fallback (chat.name -> contact.push_name -> contact.name -> JID).
 
 `wppctl` role:
 - Operational/debug client for status, auth, sync, and diagnostics.

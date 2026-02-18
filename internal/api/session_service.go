@@ -7,6 +7,7 @@ import (
 	wppv1 "github.com/matheus3301/wpp/gen/wpp/v1"
 	"github.com/matheus3301/wpp/internal/bus"
 	"github.com/matheus3301/wpp/internal/status"
+	"github.com/matheus3301/wpp/internal/store"
 	"github.com/matheus3301/wpp/internal/wa"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -21,27 +22,47 @@ type SessionService struct {
 	machine     *status.Machine
 	adapter     *wa.Adapter
 	bus         *bus.Bus
+	db          *store.DB
 }
 
 // NewSessionService creates a new session service.
-func NewSessionService(sessionName string, machine *status.Machine, adapter *wa.Adapter, b *bus.Bus) *SessionService {
+func NewSessionService(sessionName string, machine *status.Machine, adapter *wa.Adapter, b *bus.Bus, db *store.DB) *SessionService {
 	return &SessionService{
 		sessionName: sessionName,
 		startedAt:   time.Now(),
 		machine:     machine,
 		adapter:     adapter,
 		bus:         b,
+		db:          db,
 	}
 }
 
 func (s *SessionService) GetSessionStatus(_ context.Context, _ *wppv1.GetSessionStatusRequest) (*wppv1.GetSessionStatusResponse, error) {
 	current := s.machine.Current()
-	return &wppv1.GetSessionStatusResponse{
+
+	resp := &wppv1.GetSessionStatusResponse{
 		Session:       s.sessionName,
 		Status:        stateToProto(current),
 		StatusMessage: string(current),
 		UptimeMs:      time.Since(s.startedAt).Milliseconds(),
-	}, nil
+	}
+
+	// Populate phone number from adapter.
+	if s.adapter != nil {
+		resp.PhoneNumber = s.adapter.PhoneNumber()
+	}
+
+	// Populate counts from store.
+	if s.db != nil {
+		if chatCount, err := s.db.ChatCount(); err == nil {
+			resp.ChatCount = int32(chatCount)
+		}
+		if msgCount, err := s.db.MessageCount(); err == nil {
+			resp.MessageCount = int32(msgCount)
+		}
+	}
+
+	return resp, nil
 }
 
 func (s *SessionService) StartAuth(_ *wppv1.StartAuthRequest, stream wppv1.SessionService_StartAuthServer) error {

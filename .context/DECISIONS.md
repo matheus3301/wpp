@@ -51,6 +51,13 @@ Use this template for each new decision entry.
 | D-0012 | Adopt `BurntSushi/toml` for config format | Accepted | 2026-02-16 |
 | D-0013 | Decouple `wa`, `sync`, and `outbox` via event bus | Accepted | 2026-02-17 |
 | D-0014 | Adopt `skip2/go-qrcode` for TUI QR rendering | Accepted | 2026-02-17 |
+| D-0015 | TUI adopts k9s-inspired layout (Header/Prompt/Content/Crumbs/Flash) | Accepted | 2026-02-18 |
+| D-0016 | Stack-based navigation (push/pop) replaces flat page switching | Accepted | 2026-02-18 |
+| D-0017 | Command mode `:` and filter `/` for user input | Accepted | 2026-02-18 |
+| D-0018 | Single dark theme (k9s defaults), no skin system in v1 | Accepted | 2026-02-18 |
+| D-0019 | Contact name resolution via contacts table JOIN in store queries | Accepted | 2026-02-18 |
+| D-0020 | TUI primitives split: `internal/tui/ui/` (reusable) + `internal/tui/views/` (domain) | Accepted | 2026-02-18 |
+| D-0021 | Numeric shortcuts 0-9 for conversation quick-access | Accepted | 2026-02-18 |
 
 ## 5. Active Decisions
 ### D-0001 - Canonical identity term is `session`
@@ -258,3 +265,102 @@ Use this template for each new decision entry.
   - Small, zero-dependency library.
 - Related Docs:
   - [STACK](./STACK.md)
+
+### D-0015 - TUI adopts k9s-inspired layout
+- Date: 2026-02-18
+- Status: Accepted
+- Context:
+  The original TUI prototype was functional but visually rough. Users expect a polished terminal experience matching the product spec's "Beautiful Terminal Craftsmanship" principle.
+- Decision:
+  Adopt a k9s-inspired layout with five fixed regions: Header (7 rows with session info, menu hints, logo), Prompt (dynamic command/filter bar), Content (stack-managed views), Crumbs (breadcrumb trail), and Flash (transient notifications).
+- Consequences:
+  - Professional visual hierarchy with clear information density.
+  - Consistent layout across all views.
+  - More complex layout management code.
+- Related Docs:
+  - [TUI](./TUI.md)
+  - [ARCHITECTURE](./ARCHITECTURE.md)
+
+### D-0016 - Stack-based navigation replaces flat page switching
+- Date: 2026-02-18
+- Status: Accepted
+- Context:
+  The original TUI used flat page switching (`SwitchToPage`), making navigation feel disconnected. k9s uses a push/pop stack that feels like browser history.
+- Decision:
+  Use a `Pages` stack with push/pop semantics. `Enter` pushes views, `Esc`/`q` pops them. Breadcrumbs reflect the current stack.
+- Consequences:
+  - Natural, predictable navigation flow.
+  - Users always know where they are via breadcrumbs.
+  - Enables deep navigation (conversations > messages > details).
+- Related Docs:
+  - [TUI](./TUI.md)
+
+### D-0017 - Command mode `:` and filter `/` for user input
+- Date: 2026-02-18
+- Status: Accepted
+- Context:
+  Power users expect vim-like command and filter modes for keyboard-first interaction.
+- Decision:
+  `:` activates a command prompt supporting `:search`, `:chat`, `:logout`, `:help`, `:quit`. `/` activates real-time filter mode on the current view.
+- Consequences:
+  - Familiar interaction model for vim/k9s users.
+  - Reduces need for dedicated key bindings for every action.
+- Related Docs:
+  - [TUI](./TUI.md)
+
+### D-0018 - Single dark theme, no skin system in v1
+- Date: 2026-02-18
+- Status: Accepted
+- Context:
+  Theme customization adds complexity without improving core v1 value.
+- Decision:
+  Ship a single k9s-inspired dark theme with hardcoded colors. No skin/theme configuration system in v1.
+- Consequences:
+  - Simpler implementation and maintenance.
+  - Consistent visual identity.
+  - Users who want different themes must wait for a future version.
+- Related Docs:
+  - [TUI](./TUI.md)
+
+### D-0019 - Contact name resolution via contacts table JOIN
+- Date: 2026-02-18
+- Status: Accepted
+- Context:
+  Chat names appeared as raw JIDs because whatsmeow contact data was never extracted or used in queries.
+- Decision:
+  `ListChats` and `ListMessages` queries LEFT JOIN the contacts table with fallback: `chat.name -> contact.push_name -> contact.name -> jid`. Contact data is extracted from PushName events, history sync conversations, and live messages.
+- Consequences:
+  - Chats and messages display human-readable names.
+  - Minimal performance impact (indexed JOIN on primary key).
+  - Names improve as more contact data is ingested.
+- Related Docs:
+  - [ARCHITECTURE](./ARCHITECTURE.md)
+  - [TUI](./TUI.md)
+
+### D-0020 - TUI primitives split: `ui/` + `views/`
+- Date: 2026-02-18
+- Status: Accepted
+- Context:
+  The original TUI views mixed domain logic with reusable UI patterns, making components hard to test and reuse.
+- Decision:
+  Split TUI code into two layers: `internal/tui/ui/` for domain-agnostic primitives (theme, pages, crumbs, flash, prompt, menu, session info, logo) and `internal/tui/views/` for domain-specific views that compose primitives.
+- Consequences:
+  - Clear separation of concerns.
+  - UI primitives are testable and reusable.
+  - Slightly more files and packages.
+- Related Docs:
+  - [TUI](./TUI.md)
+  - [ARCHITECTURE](./ARCHITECTURE.md)
+
+### D-0021 - Numeric shortcuts 0-9 for conversation quick-access
+- Date: 2026-02-18
+- Status: Accepted
+- Context:
+  Power users need the fastest possible way to jump to frequently-used conversations.
+- Decision:
+  Keys `1-9` on the conversation list jump directly to the Nth visible conversation. `0` clears any active filter.
+- Consequences:
+  - Near-instant conversation access for top conversations.
+  - Consistent with k9s namespace shortcuts.
+- Related Docs:
+  - [TUI](./TUI.md)

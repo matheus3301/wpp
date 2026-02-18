@@ -74,6 +74,28 @@ func (e *Engine) handleEvent(evt bus.Event) {
 		} else {
 			e.logger.Info("history batch ingested", zap.Int("messages", len(msgs)))
 		}
+	case "wa.contact":
+		contact, ok := evt.Payload.(*store.Contact)
+		if !ok {
+			return
+		}
+		if err := e.db.UpsertContact(contact); err != nil {
+			e.logger.Error("failed to upsert contact", zap.Error(err), zap.String("jid", contact.JID))
+		}
+	case "wa.contact_batch":
+		contacts, ok := evt.Payload.([]*store.Contact)
+		if !ok {
+			return
+		}
+		flat := make([]store.Contact, len(contacts))
+		for i, c := range contacts {
+			flat[i] = *c
+		}
+		if err := e.db.BulkUpsertContacts(flat); err != nil {
+			e.logger.Error("failed to bulk upsert contacts", zap.Error(err), zap.Int("count", len(contacts)))
+		} else {
+			e.logger.Info("contacts batch ingested", zap.Int("contacts", len(contacts)))
+		}
 	}
 }
 

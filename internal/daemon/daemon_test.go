@@ -56,7 +56,7 @@ func TestDaemonLifecycle(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	b := bus.New()
 	machine := status.NewMachine(b)
-	sessionSvc := api.NewSessionService(sessionName, machine, nil, b)
+	sessionSvc := api.NewSessionService(sessionName, machine, nil, b, db)
 	syncSvc := api.NewSyncService(nil, b, machine, sessionName)
 	chatSvc := api.NewChatService(db, b, sessionName)
 	messageSvc := api.NewMessageService(db, b, sessionName)
@@ -191,7 +191,7 @@ func TestStatusTransitionsToAuthRequired(t *testing.T) {
 	// Simulate what registerLifecycle does when adapter is NOT logged in.
 	_ = machine.Transition(status.AuthRequired)
 
-	sessionSvc := api.NewSessionService("test", machine, nil, b)
+	sessionSvc := api.NewSessionService("test", machine, nil, b, nil)
 
 	grpcSrv := grpc.NewServer()
 	wppv1.RegisterSessionServiceServer(grpcSrv, sessionSvc)
@@ -245,7 +245,7 @@ func TestStatusReflectsPostAuthTransition(t *testing.T) {
 	// Start at AUTH_REQUIRED (first-run, no credentials).
 	_ = machine.Transition(status.AuthRequired)
 
-	sessionSvc := api.NewSessionService("test", machine, nil, b)
+	sessionSvc := api.NewSessionService("test", machine, nil, b, nil)
 
 	grpcSrv := grpc.NewServer()
 	wppv1.RegisterSessionServiceServer(grpcSrv, sessionSvc)
@@ -323,7 +323,7 @@ func TestFxModuleWiring(t *testing.T) {
 	srv, err := NewServer(
 		p,
 		zap.NewNop(),
-		api.NewSessionService("fxtest", status.NewMachine(nil), nil, nil),
+		api.NewSessionService("fxtest", status.NewMachine(nil), nil, nil, nil),
 		api.NewSyncService(nil, nil, status.NewMachine(nil), "fxtest"),
 		api.NewChatService(nil, nil, "fxtest"),
 		api.NewMessageService(nil, nil, "fxtest"),

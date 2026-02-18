@@ -131,6 +131,60 @@ func TestToStoreMessage(t *testing.T) {
 	}
 }
 
+// TestNormalizeJID verifies that device/agent suffixes are stripped.
+// Regression: history sync and live messages produced different JIDs for the
+// same contact (e.g. "558592403672:0@s.whatsapp.net" vs "558592403672@s.whatsapp.net"),
+// creating duplicate chat entries in the database.
+func TestNormalizeJID(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"558592403672@s.whatsapp.net", "558592403672@s.whatsapp.net"},
+		{"558592403672:0@s.whatsapp.net", "558592403672@s.whatsapp.net"},
+		{"558592403672:5@s.whatsapp.net", "558592403672@s.whatsapp.net"},
+		{"120363123456@g.us", "120363123456@g.us"},
+		{"", ""},
+		{"invalid", "invalid"},
+		// LID JIDs: NormalizeJID alone cannot resolve these (needs adapter),
+		// but it must not crash and should preserve them as-is.
+		{"3917077286968@lid", "3917077286968@lid"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := NormalizeJID(tt.input)
+			if got != tt.want {
+				t.Errorf("NormalizeJID(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseLiveMessageStripsDeviceSuffix verifies that live messages from
+// device-specific JIDs are normalized to the canonical user JID.
+func TestParseLiveMessageStripsDeviceSuffix(t *testing.T) {
+	evt := &events.Message{
+		Info: types.MessageInfo{
+			ID:        "M1",
+			Timestamp: time.Now(),
+			MessageSource: types.MessageSource{
+				Chat:   types.JID{User: "558592403672", Server: "s.whatsapp.net", Device: 1},
+				Sender: types.JID{User: "558592403672", Server: "s.whatsapp.net", Device: 3},
+			},
+		},
+		Message: &waE2E.Message{Conversation: proto.String("hi")},
+	}
+
+	parsed := ParseLiveMessage(evt)
+	if parsed.ChatJID != "558592403672@s.whatsapp.net" {
+		t.Errorf("ChatJID = %q, want 558592403672@s.whatsapp.net (device suffix not stripped)", parsed.ChatJID)
+	}
+	if parsed.SenderJID != "558592403672@s.whatsapp.net" {
+		t.Errorf("SenderJID = %q, want 558592403672@s.whatsapp.net (device suffix not stripped)", parsed.SenderJID)
+	}
+}
+
 func TestParseLiveMessageImageType(t *testing.T) {
 	evt := &events.Message{
 		Info: types.MessageInfo{

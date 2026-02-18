@@ -63,6 +63,9 @@ type GetSessionStatusResponse struct {
 	Status        SessionStatus          `protobuf:"varint,2,opt,name=status,proto3,enum=wpp.v1.SessionStatus" json:"status,omitempty"`
 	StatusMessage string                 `protobuf:"bytes,3,opt,name=status_message,json=statusMessage,proto3" json:"status_message,omitempty"`
 	UptimeMs      int64                  `protobuf:"varint,4,opt,name=uptime_ms,json=uptimeMs,proto3" json:"uptime_ms,omitempty"`
+	PhoneNumber   string                 `protobuf:"bytes,5,opt,name=phone_number,json=phoneNumber,proto3" json:"phone_number,omitempty"`
+	ChatCount     int32                  `protobuf:"varint,6,opt,name=chat_count,json=chatCount,proto3" json:"chat_count,omitempty"`
+	MessageCount  int32                  `protobuf:"varint,7,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -121,6 +124,27 @@ func (x *GetSessionStatusResponse) GetStatusMessage() string {
 func (x *GetSessionStatusResponse) GetUptimeMs() int64 {
 	if x != nil {
 		return x.UptimeMs
+	}
+	return 0
+}
+
+func (x *GetSessionStatusResponse) GetPhoneNumber() string {
+	if x != nil {
+		return x.PhoneNumber
+	}
+	return ""
+}
+
+func (x *GetSessionStatusResponse) GetChatCount() int32 {
+	if x != nil {
+		return x.ChatCount
+	}
+	return 0
+}
+
+func (x *GetSessionStatusResponse) GetMessageCount() int32 {
+	if x != nil {
+		return x.MessageCount
 	}
 	return 0
 }
@@ -454,12 +478,16 @@ var File_wpp_v1_session_proto protoreflect.FileDescriptor
 const file_wpp_v1_session_proto_rawDesc = "" +
 	"\n" +
 	"\x14wpp/v1/session.proto\x12\x06wpp.v1\x1a\x13wpp/v1/common.proto\"\x19\n" +
-	"\x17GetSessionStatusRequest\"\xa7\x01\n" +
+	"\x17GetSessionStatusRequest\"\x8e\x02\n" +
 	"\x18GetSessionStatusResponse\x12\x18\n" +
 	"\asession\x18\x01 \x01(\tR\asession\x12-\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x15.wpp.v1.SessionStatusR\x06status\x12%\n" +
 	"\x0estatus_message\x18\x03 \x01(\tR\rstatusMessage\x12\x1b\n" +
-	"\tuptime_ms\x18\x04 \x01(\x03R\buptimeMs\"\x12\n" +
+	"\tuptime_ms\x18\x04 \x01(\x03R\buptimeMs\x12!\n" +
+	"\fphone_number\x18\x05 \x01(\tR\vphoneNumber\x12\x1d\n" +
+	"\n" +
+	"chat_count\x18\x06 \x01(\x05R\tchatCount\x12#\n" +
+	"\rmessage_count\x18\a \x01(\x05R\fmessageCount\"\x12\n" +
 	"\x10StartAuthRequest\"]\n" +
 	"\tAuthEvent\x12\x1d\n" +
 	"\n" +

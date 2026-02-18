@@ -20,6 +20,9 @@ message GetSessionStatusResponse {
   SessionStatus status = 2;
   string status_message = 3;
   int64 uptime_ms = 4;
+  string phone_number = 5;
+  int32 chat_count = 6;
+  int32 message_count = 7;
 }
 
 message StartAuthRequest {}

@@ -25,9 +25,9 @@ func ParseLiveMessage(evt *events.Message) *ParsedMessage {
 	msgType := detectMessageType(evt.Message)
 
 	return &ParsedMessage{
-		ChatJID:     evt.Info.Chat.String(),
+		ChatJID:     evt.Info.Chat.ToNonAD().String(),
 		MsgID:       evt.Info.ID,
-		SenderJID:   evt.Info.Sender.String(),
+		SenderJID:   evt.Info.Sender.ToNonAD().String(),
 		SenderName:  evt.Info.PushName,
 		Body:        body,
 		MessageType: msgType,
@@ -42,9 +42,9 @@ func ParseHistoryMessage(msg *waE2E.Message, info types.MessageInfo) *ParsedMess
 	msgType := detectMessageType(msg)
 
 	return &ParsedMessage{
-		ChatJID:     info.Chat.String(),
+		ChatJID:     info.Chat.ToNonAD().String(),
 		MsgID:       info.ID,
-		SenderJID:   info.Sender.String(),
+		SenderJID:   info.Sender.ToNonAD().String(),
 		SenderName:  info.PushName,
 		Body:        body,
 		MessageType: msgType,
@@ -66,6 +66,16 @@ func (p *ParsedMessage) ToStoreMessage() *store.Message {
 		Status:      "received",
 		Timestamp:   p.Timestamp,
 	}
+}
+
+// NormalizeJID strips the device/agent suffix from a JID string.
+// "558592403672:0@s.whatsapp.net" becomes "558592403672@s.whatsapp.net".
+func NormalizeJID(jid string) string {
+	parsed, err := types.ParseJID(jid)
+	if err != nil {
+		return jid
+	}
+	return parsed.ToNonAD().String()
 }
 
 func extractTextBody(msg *waE2E.Message) string {

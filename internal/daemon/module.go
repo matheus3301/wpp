@@ -104,8 +104,8 @@ func provideSender(db *store.DB, adapter *wa.Adapter, b *bus.Bus, m *status.Mach
 	return outbox.NewSender(db, adapter, b, m, logger)
 }
 
-func provideSessionService(p Params, m *status.Machine, adapter *wa.Adapter, b *bus.Bus) *api.SessionService {
-	return api.NewSessionService(p.SessionName, m, adapter, b)
+func provideSessionService(p Params, m *status.Machine, adapter *wa.Adapter, b *bus.Bus, db *store.DB) *api.SessionService {
+	return api.NewSessionService(p.SessionName, m, adapter, b, db)
 }
 
 func provideSyncService(p Params, adapter *wa.Adapter, b *bus.Bus, m *status.Machine) *api.SyncService {
@@ -134,7 +134,7 @@ func registerLifecycle(lc fx.Lifecycle, srv *Server, lk *lock.Lock, db *store.DB
 			engine.Start(context.Background())
 
 			// Register event handler for whatsmeow events.
-			handler := wa.NewEventHandler(b, machine, logger)
+			handler := wa.NewEventHandler(b, machine, adapter, logger)
 			adapter.RegisterEventHandler(handler.Handle)
 
 			// Start gRPC server in background.
@@ -146,6 +146,34 @@ func registerLifecycle(lc fx.Lifecycle, srv *Server, lk *lock.Lock, db *store.DB
 
 			// Start outbox sender.
 			sender.Start(context.Background())
+
+			// Listen for sync.connected to trigger LID reconciliation.
+			go func() {
+				ch, unsub := b.Subscribe("sync.connected", 1)
+				defer unsub()
+
+				select {
+				case <-ch:
+					// Wait briefly for LID map to be populated by whatsmeow.
+					time.Sleep(3 * time.Second)
+
+					mappings := adapter.GetLIDMappings(context.Background())
+					if len(mappings) > 0 {
+						if err := db.SyncLIDMap(mappings); err != nil {
+							logger.Error("failed to sync lid map", zap.Error(err))
+							return
+						}
+						merged, err := db.ReconcileLIDs()
+						if err != nil {
+							logger.Error("failed to reconcile LIDs", zap.Error(err))
+						} else if merged > 0 {
+							logger.Info("reconciled LID chats", zap.Int64("merged", merged))
+							b.Publish(bus.Event{Kind: "message.upserted", Timestamp: time.Now()})
+						}
+					}
+				case <-context.Background().Done():
+				}
+			}()
 
 			// Transition state based on auth status.
 			if adapter.IsLoggedIn() {
